@@ -186,7 +186,8 @@ GitHub 一键 Fork 即可使用，无需编程基础。
 ### 2025/09/04 - v2.1.1
 
 - 修复docker在某些架构中无法正常运行的问题
-
+- 正式发布官方 Docker 镜像 wantcat/trendradar，支持多架构
+- 优化 Docker 部署流程，无需本地构建即可快速使用
 
 <details>
 <summary><strong>👉 历史更新</strong></summary>
@@ -655,46 +656,185 @@ platforms:
 
 ### 🐳 Docker 部署
 
-1. **克隆项目并进入目录**:
+#### 方式一：快速体验（一行命令）
+
+```bash
+# 直接运行，使用默认配置（仅体验功能，无推送通知）
+docker run -d --name trend-radar \
+  -v ./config:/app/config:ro \
+  -v ./output:/app/output \
+  -e CRON_SCHEDULE="*/30 * * * *" \
+  -e RUN_MODE="cron" \
+  -e IMMEDIATE_RUN="true" \
+  wantcat/trendradar:latest
+
+# 或者配置环境变量启用推送通知
+docker run -d --name trend-radar \
+  -v ./config:/app/config:ro \
+  -v ./output:/app/output \
+  -e FEISHU_WEBHOOK_URL="你的飞书webhook" \
+  -e DINGTALK_WEBHOOK_URL="你的钉钉webhook" \
+  -e WEWORK_WEBHOOK_URL="你的企业微信webhook" \
+  -e TELEGRAM_BOT_TOKEN="你的telegram_bot_token" \
+  -e TELEGRAM_CHAT_ID="你的telegram_chat_id" \
+  -e CRON_SCHEDULE="*/30 * * * *" \
+  -e RUN_MODE="cron" \
+  -e IMMEDIATE_RUN="true" \
+  wantcat/trendradar:latest
+```
+
+**注意**：快速体验模式需要先准备配置文件：
+
+**Linux/macOS 系统：**
+```bash
+# 创建配置目录并下载配置文件
+mkdir -p config output
+wget https://raw.githubusercontent.com/sansan0/TrendRadar/master/config/config.yaml -P config/
+wget https://raw.githubusercontent.com/sansan0/TrendRadar/master/config/frequency_words.txt -P config/
+```
+或者**手动创建**：
+1. 在当前目录下创建两个文件夹：`config` 和 `output`
+2. 下载配置文件到对应位置：
+   - 访问 https://raw.githubusercontent.com/sansan0/TrendRadar/master/config/config.yaml → 右键"另存为" → 保存到 `config\config.yaml`
+   - 访问 https://raw.githubusercontent.com/sansan0/TrendRadar/master/config/frequency_words.txt → 右键"另存为" → 保存到 `config\frequency_words.txt`
+
+完成后的目录结构应该是：
+```
+当前目录/
+├── config/
+│   ├── config.yaml
+│   └── frequency_words.txt
+└── output/
+```
+
+#### 方式二：使用 docker-compose（推荐）
+
+1. **创建项目目录和配置**:
    ```bash
-   git clone https://github.com/sansan0/TrendRadar.git
-   cd TrendRadar
+   # 创建目录结构
+   mkdir -p trendradar/{config,output}
+   cd trendradar
+   
+   # 下载配置文件模板
+   wget https://raw.githubusercontent.com/sansan0/TrendRadar/master/config/config.yaml -P config/
+   wget https://raw.githubusercontent.com/sansan0/TrendRadar/master/config/frequency_words.txt -P config/
+   
+   # 下载 docker-compose 配置
+   wget https://raw.githubusercontent.com/sansan0/TrendRadar/master/docker/.env
+   wget https://raw.githubusercontent.com/sansan0/TrendRadar/master/docker/docker-compose.yml
    ```
 
-2. **配置文件**:
-   - 修改 `config/config.yaml` 和 `config/frequency_words.txt`
-   - **推送链接填写**，**设置推送定时**可通过 .env 进行配置
+2. **配置文件说明**:
+   - `config/config.yaml` - 应用主配置（报告模式、推送设置等）
+   - `config/frequency_words.txt` - 关键词配置（设置你关心的热点词汇）
+   - `.env` - 环境变量配置（webhook URLs 和定时任务）
 
 3. **启动服务**:
    ```bash
-   cd docker
+   # 拉取最新镜像并启动
+   docker-compose pull
    docker-compose up -d
    ```
 
-4. **管理服务**:
+4. **查看运行状态**:
    ```bash
-   # 查看运行状态
-   docker exec -it trend-radar python manage.py status
+   # 查看日志
+   docker logs -f trend-radar
    
-   # 手动执行一次爬虫
-   docker exec -it trend-radar python manage.py run
-   
-   # 查看实时日志
-   docker exec -it trend-radar python manage.py logs
-   
-   # 显示当前配置
-   docker exec -it trend-radar python manage.py config
-   
-   # 显示输出文件
-   docker exec -it trend-radar python manage.py files
-   
-   # 重启定时服务
-   docker exec -it trend-radar python manage.py restart
-   
-   # 显示帮助信息
-   docker exec -it trend-radar python manage.py help
+   # 查看容器状态
+   docker ps | grep trend-radar
    ```
+
+#### 方式三：本地构建（开发者选项）
+
+如果需要自定义修改代码或构建自己的镜像：
+
+```bash
+# 克隆项目
+git clone https://github.com/sansan0/TrendRadar.git
+cd TrendRadar
+
+# 修改配置文件
+vim config/config.yaml
+vim config/frequency_words.txt
+
+# 使用构建版本的 docker-compose
+cd docker
+cp docker-compose-build.yml docker-compose.yml
+
+# 构建并启动
+docker-compose build
+docker-compose up -d
+```
+
+#### 镜像更新
+
+```bash
+# 方式一：手动更新
+docker pull wantcat/trendradar:latest
+docker-compose down
+docker-compose up -d
+
+# 方式二：使用 docker-compose 更新
+docker-compose pull
+docker-compose up -d
+```
+
+#### 服务管理命令
+
+```bash
+# 查看运行状态
+docker exec -it trend-radar python manage.py status
+
+# 手动执行一次爬虫
+docker exec -it trend-radar python manage.py run
+
+# 查看实时日志
+docker exec -it trend-radar python manage.py logs
+
+# 显示当前配置
+docker exec -it trend-radar python manage.py config
+
+# 显示输出文件
+docker exec -it trend-radar python manage.py files
+
+# 查看帮助信息
+docker exec -it trend-radar python manage.py help
+
+# 重启容器
+docker restart trend-radar
+
+# 停止容器
+docker stop trend-radar
+
+# 删除容器（保留数据）
+docker rm trend-radar
+```
+
+#### 数据持久化
+
+生成的报告和数据默认保存在 `./output` 目录下，即使容器重启或删除，数据也会保留。
+
+#### 故障排查
+
+```bash
+# 检查容器状态
+docker inspect trend-radar
+
+# 查看容器日志
+docker logs --tail 100 trend-radar
+
+# 进入容器调试
+docker exec -it trend-radar /bin/bash
+
+# 验证配置文件
+docker exec -it trend-radar ls -la /app/config/
+```
+
 </details>
+
+
+
 
 ## ☕ 学习交流与1元点赞
 
